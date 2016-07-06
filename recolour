@@ -1,0 +1,26 @@
+#!/bin/bash
+
+# For each line on stdin, print it to stdout with highlighting as specified.
+# Pairs of arguments specify the regex pattern to match (as interpreted by
+# sed -r; remember shell escapes) and the colour code to highlight that line.
+
+
+if (( $# % 2 )); then
+    echo An even number of parameters is required!
+    exit 1
+fi
+
+program='#'
+while (( $# > 0 )); do
+    pattern=$1;colour=$2
+    program="$program
+        /${pattern}/ { 
+            s/^/[${colour}m/
+            s/$/[0m/
+        }"
+    shift 2
+done
+
+# echo "$program"
+sed -r "$program"
+

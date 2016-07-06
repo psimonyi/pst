@@ -1,0 +1,90 @@
+#!/bin/bash -i
+shopt -s checkwinsize # lets us use $COLUMNS
+
+details=
+long=
+query=
+options=1
+while [[ "$1" ]]; do
+    if [[ "$1" == "-d" ]]; then
+        details=1
+    elif [[ "$1" == "-l" ]]; then
+        long=1
+    elif [[ "$1" == "--" ]]; then
+        options=
+    elif [[ $options && "$1" == -* ]]; then
+        echo Unrecognized option: $1
+    else
+        query=$1
+    fi
+    shift
+done
+
+# argsmin is the minimum width of the args column
+if [[ $details ]]; then
+    argsmin=44
+elif [[ $long ]]; then
+    argsmin=$((COLUMNS - 6))
+else
+    argsmin=$((80 - 6))
+fi
+
+# Generate the format by running this Python program:
+program="
+# Columns, in order of preference for being allocated space
+cols_preferred = ['args', 'pid', 'stat', 'nice', '%mem', 'euser', 'tname',
+'start_time', 'psr', 'cputime', 'egroup', 'pgid']
+# Columns, in the order to display them
+cols_ordered = ['pid', 'pgid', 'args', 'psr', 'stat', 'nice', '%mem', 'cputime',
+'start_time', 'tname', 'euser', 'egroup']
+# Column widths we'll use (width of args is set specially in colspec)
+cols_widths = { 'pid':5, '%cpu':5, '%mem':4, 'args':0, 'start_time':5,
+'cputime':8, 'nice':3, 'psr':3, 'sgi_p':1, 'session':5, 'stat':4, 's':1,
+'tname':6, 'rssize':6, 'size':6, 'vsz':6, 'pgid':5, 'euser':8, 'egroup':8 }
+
+def colspec(name):
+    w = space + $argsmin if name == 'args' else cols_widths[name]
+    return ':'.join((name, str(w)))
+
+space = $COLUMNS - $argsmin + 1
+cols_chosen = set()
+for c in cols_preferred:
+    if space > cols_widths[c]:
+        space -= cols_widths[c] + 1
+        cols_chosen.add(c)
+format = ','.join(colspec(c) for c in cols_ordered if c in cols_chosen)
+print(format)
+"
+format=`python3 -c "$program"`
+
+if [[ $query ]]; then
+    # List processes; select query matches; extract PIDs; join with "|" (so it
+    # forms part of a regex to be used with highlight, below).
+    pids=`ps -e -o pid= -o args= | grep "$query" | 
+            sed -r 's/^ *([0-9]+) .*/\1/' | paste -s -d \|`
+    # Display process tree using specified format; repeat the first line at the
+    # end; highlight this process green and matches red.
+    ps -e -o $format -H | sed '1 h; $ { p; g }' |\
+            recolour "^ *$$ " "32"   "^ *($pids) " "01;31"
+else
+    ps -e -o $format -H | sed '1 h; $ { p; g }' | cut -c 1-$COLUMNS
+fi
+
+
+if [[ $details && $long ]]; then
+    echo "-d and -l don't make sense together, so -d took priority."
+fi
+
+
+# Notes on columns:
+# %cpu = cputime / realtime
+# %mem = resident size / physical mem
+# psr = currently assigned to which processor
+# sgi_p = currently running on which processor (* = none)
+# session = pid of session leader
+# s = first char of stat
+# tname = tty name (default width 8, but often 6 is enough)
+# rssize = resident set, kB (non-swapped physical mem)
+# size = rough amount of space needed to swap everything
+# vsz = virtual mem size of process, KiB (whatever that means)
+
