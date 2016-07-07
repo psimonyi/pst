@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::env;
 use std::io::{stderr, Write};
 use std::process;
@@ -89,47 +88,56 @@ fn line_matches(line: &str, pids: &Vec<String>) -> bool {
 }
 
 fn format_string(total_width: u32, reserve_for_args: u32) -> String {
-    // Columns, in order of preference for being allocated space
-    let cols_preferred = ["args", "pid", "stat", "nice", "%mem", "euser",
-                          "tname", "start_time", "psr", "cputime", "egroup",
-                          "pgid"];
-    // Columns, in the order to display them
-    let cols_ordered = ["pid", "pgid", "args", "psr", "stat", "nice", "%mem",
+    struct Col<'a> {
+        name: &'a str,
+        width: u32,
+        order: i32,
+    }
+    impl<'a> Col<'a> {
+        fn new(name: &'a str, width: u32, order: i32) -> Col<'a> {
+            Col { name: name, width: width, order: order }
+        }
+    }
+
+    // We have to iterate over the columns twice in different orders: first in
+    // order of preference to choose which ones will fit, and then in display
+    // order to build the format string.  This list is in order of preference.
+    let unset = -1;
+    let mut cols = [Col::new("args", 0, unset),
+                    Col::new("pid", 5, unset),
+                    Col::new("stat", 4, unset),
+                    Col::new("nice", 3, unset),
+                    Col::new("%mem", 4, unset),
+                    Col::new("euser", 8, unset),
+                    Col::new("tname", 6, unset),
+                    Col::new("start_time", 5, unset),
+                    Col::new("psr", 3, unset),
+                    Col::new("cputime", 8, unset),
+                    Col::new("egroup", 8, unset),
+                    Col::new("pgid", 5, unset)];
+
+    let display_order = ["pid", "pgid", "args", "psr", "stat", "nice", "%mem",
                         "cputime", "start_time", "tname", "euser", "egroup"];
-
-    // Column widths we'll use.  The width for args is set specially to include
-    // whatever space is left over.
-    let cols_widths_p = [ ("pid", 5), ("%cpu", 5), ("%mem", 4), ("args", 0),
-                          ("start_time", 5), ("cputime", 8), ("nice", 3),
-                          ("psr", 3), ("sgi_p", 1), ("session", 5),
-                          ("stat", 4), ("s", 1), ("tname", 6), ("rssize", 6),
-                          ("size", 6), ("vsz", 6), ("pgid", 5), ("euser", 8),
-                          ("egroup", 8) ];
-    // Make that a mapping.  This clearly isn't the most efficient, but it's a
-    // straightforward translation from the Python.
-    let mut cols_widths = HashMap::new();
-    for &(name, width) in cols_widths_p.into_iter() {
-        cols_widths.insert(name, width);
+    for (i, name) in display_order.iter().enumerate() {
+        let col = cols.iter_mut().find(|c| c.name == *name).unwrap();
+        col.order = i as i32;
     }
 
+    // The +1's account for the 1-space gap between columns.
     let mut space = total_width - reserve_for_args + 1;
-    let mut cols_chosen : HashMap<&str, u32> = HashMap::new();
-    for col in cols_preferred.into_iter() {
-        let width = *cols_widths.get(col).unwrap();
-        if space > width {
-            space -= width + 1;
-            cols_chosen.insert(col, width);
+    let mut cols_chosen = Vec::new();
+    for col in cols.iter_mut() {
+        if space > col.width {
+            space -= col.width + 1;
+            cols_chosen.push(col);
         }
     }
+    assert_eq!(cols_chosen[0].name, "args");
+    cols_chosen.first_mut().unwrap().width = reserve_for_args + space;
 
-    cols_chosen.insert("args", reserve_for_args + space);
-
-    let mut cols = Vec::new();
-    for col in cols_ordered.into_iter() {
-        match cols_chosen.get(col) {
-            Some(width) => cols.push(format!("{}:{}", col, width)),
-            None => (),
-        }
-    }
-    return cols.join(",");
+    cols_chosen.sort_by_key(|col| col.order);
+    let parts: Vec<String> = cols_chosen.iter()
+                           .map(|col| format!("{}:{}", col.name, col.width))
+                           .collect();
+    parts.join(",")
 }
