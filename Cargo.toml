@@ -1,0 +1,7 @@
+[package]
+name = "pst"
+version = "0.0.0"
+authors = ["Peter Simonyi <pts@petersimonyi.ca>"]
+
+[dependencies]
+termsize = "0.1"
