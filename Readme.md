@@ -7,7 +7,7 @@ You can also pass a query string.  Queries match literally against the entire
 command (this usually includes the process' arguments) or its PID.  The entire
 tree is printed, but matching lines are highlighted.
 
-# History
+## History
 
     ps
     # Oh, right.
@@ -23,6 +23,6 @@ tree is printed, but matching lines are highlighted.
 `pst` started out life as an alias for something like `ps -eHf`, though I think
 I had some more options in there.  And then it grew.
 
-# Licence
+## Licence
 
 This project is available under the Mozilla Public License 2.0.
