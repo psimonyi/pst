@@ -22,3 +22,7 @@ tree is printed, but matching lines are highlighted.
 
 `pst` started out life as an alias for something like `ps -eHf`, though I think
 I had some more options in there.  And then it grew.
+
+# Licence
+
+This project is available under the Mozilla Public License 2.0.
