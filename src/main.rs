@@ -21,6 +21,7 @@ fn main() {
     let mut select_pids = vec![];
 
     let mut can_flag = true;
+    let mut used_query = false;
     for arg in args {
         match arg.as_str() {
             "-d" if can_flag =>
@@ -33,11 +34,23 @@ fn main() {
                 writeln!(stderr(), "Unrecognized option: {}", s).unwrap();
                 process::exit(1);
             },
-            query => select_pids.append(&mut find_pids(query)),
+            query => {
+                select_pids.append(&mut find_pids(query));
+                used_query = true;
+            },
         }
     }
 
-    print_ps(columns, reserve_for_args, select_pids);
+    print_ps(columns, reserve_for_args, &select_pids);
+    if used_query {
+        match select_pids.len() {
+            0 => println!("No matching processes."),
+            1 => println!("One matching process: {}", select_pids[0]),
+            _ => println!("{} matching processes: {}",
+                          select_pids.len(),
+                          select_pids.join(" ")),
+        }
+    }
 }
 
 fn find_pids(needle: &str) -> Vec<String> {
@@ -61,7 +74,7 @@ fn find_pids(needle: &str) -> Vec<String> {
     rv
 }
 
-fn print_ps(width: u32, reserve_for_args: u32, select_pids: Vec<String>) {
+fn print_ps(width: u32, reserve_for_args: u32, select_pids: &Vec<String>) {
     let ps = Command::new("ps")
                      .arg("-e")
                      .arg("-o")
@@ -77,7 +90,7 @@ fn print_ps(width: u32, reserve_for_args: u32, select_pids: Vec<String>) {
     let first_line = lines.next().unwrap();
     println!("{}", first_line);
     for line in lines {
-        if line_matches(line, &select_pids) {
+        if line_matches(line, select_pids) {
             println!("\x1b[01;31m{}\x1b[0m", line);
         } else {
             println!("{}", line);
