@@ -90,6 +90,16 @@ fn print_ps(width: u32, reserve_for_args: u32, select_pids: &Vec<String>) {
     let first_line = lines.next().unwrap();
     println!("{}", first_line);
     for line in lines {
+        // If the last column is args, it might be wider than specified.
+        // Normally, that would require knowing how many cells the string takes
+        // up, but ps seems to mangle anything that would be complicated into a
+        // "?", so assuming one char per cell actually works.
+        let end = match line.char_indices().nth(width as usize) {
+            Some((i, _)) => i,
+            None => line.len(),
+        };
+        let line = &line[..end];
+
         if line_matches(line, select_pids) {
             println!("\x1b[01;31m{}\x1b[0m", line);
         } else {
